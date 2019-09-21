@@ -1,0 +1,12 @@
+name: lock5explorer
+title: lock5explorer
+username:
+account: cddesja
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 1187678
+bundleId: 2409550
+url: https://cddesja.shinyapps.io/lock5explorer/
+when: 1568322328.96431
+asMultiple: FALSE
+asStatic: FALSE
