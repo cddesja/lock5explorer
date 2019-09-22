@@ -6,9 +6,14 @@ if(!require(tools)){
   install.packages("tools")
   library(tools)
 }
-library(ggplot2)
-library(dplyr)
-
+if(!require(ggplot2)){
+  install.packages("ggplot2")
+  library(ggplot2)
+}
+if(!require(dplyr)){
+  install.packages("dplyr")
+  library(dplyr)
+}
 
 get_plot_limits <- function(plot) {
   gb = ggplot_build(plot)
@@ -16,7 +21,7 @@ get_plot_limits <- function(plot) {
   xmax = gb$layout$panel_params[[1]]$x.range[2]
   ymin = gb$layout$panel_params[[1]]$y.range[1]
   ymax = gb$layout$panel_params[[1]]$y.range[2]
-  list(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax)
+  data.frame(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax)
 }
 
 # get data helper function
@@ -31,10 +36,10 @@ lock.data <- lock.data$results[, "Item"]
 
 shinyApp(
   ui = navbarPage("Lock 5 Data Explorer",
-                  tabPanel("Data Set",
+                  tabPanel("Dataset",
                            fluidRow(
                              column(4,
-                                    selectInput("data", "Select a data set from the Lock 5 textbook:", lock.data)),
+                                    selectInput("data", "Select a dataset from the Lock 5 textbook:", lock.data)),
                              column(8,
                                     uiOutput("documentation")))),
                   tabPanel("Data Table",
@@ -45,8 +50,6 @@ shinyApp(
                                     selectInput("single", label = "Select a variable", choices = names(ACS))),
                              column(8,
                                plotOutput("plot", height = "600px"),
-                               textOutput("single.var.name"),
-                               br(),
                                verbatimTextOutput("sum.single")
                              )
                            )
@@ -70,7 +73,7 @@ shinyApp(
                                             "smooth", "Add a smoother?",value = FALSE))),
                            mainPanel(tabsetPanel(type = "tabs",
                                                  tabPanel("Plot",  plotOutput("bi.plot", height = "600px")),
-                                                 tabPanel("Summary", verbatimTextOutput("bi.var.name"))))
+                                                 tabPanel("Summary", verbatimTextOutput("sum.bi"))))
                            )
                   )
   ,
@@ -136,27 +139,17 @@ shinyApp(
     output$plot <- renderPlot({
       
       if(is.numeric(unlist(get.var()))) {
-        # create the table
-        x.var <- as.numeric(names(table(get.var())))
-        y.var <- c(table(get.var()))
-        
-        # expand based on the table
-        x.var <- rep(x.var, y.var)
-        y.var <- unlist(sapply(y.var, seq))
-        tmp <- data.frame(x.var = x.var,
-                          y.var = y.var)
-        plot(y.var ~ x.var, tmp, pch = 16, col = "dodgerblue",
-             ylab = "Count", xlab = names(get.var()),
-             main = paste("Dotplot of the", names(get.var()), "variable."))
+        ggplot(get.var(), aes(x = get.var()[,1])) +
+          geom_histogram(col = "white", fill = "#E69F00") + 
+          xlab(names(get.var())[1])  +
+          scale_y_continuous(NULL, breaks = NULL)
       } else{
-        plot(get.var(), ylab = "Count", xlab = names(get.var()),
-             main = paste("Barchart of the", names(get.var()), "variable."))
+        ggplot(get.var(), aes(x = get.var()[,1])) +
+          geom_bar(col = "#E69F00", fill = "#E69F00") + 
+          xlab(names(get.var())[1])  
       }
     })
-    
-    output$single.var.name <- renderText({
-      paste("Descriptive statistics for the ", names(get.var()), "variable.")
-    })
+
     
     output$sum.single <- renderPrint({
       if(is.numeric(unlist(get.var()))) {
@@ -173,20 +166,29 @@ shinyApp(
       # quantitative & quantitative plots ----
       if(types == 2){
         g0 <- ggplot(dat.tmp, aes(x = dat.tmp[, 1], y = dat.tmp[, 2])) +
-          geom_point() +
+          geom_point(size = 2, col = "#E69F00") +
           xlab(names(dat.tmp)[1]) +
           ylab(names(dat.tmp)[2])
+        lims <- get_plot_limits(g0)
+        
         if(input$regline){
           coefs <- coef(lm(dat.tmp[, 2] ~ dat.tmp[, 1]))
-          g0 <- g0 + geom_abline(intercept = coefs[1], slope = coefs[2]) #+ 
+          x.val <- lims$xmin + (lims$xmax - lims$xmin) * .03
+          y.val <-lims$ymax - (lims$ymax - lims$ymin) * .05
+          g0 <- g0 + 
+            geom_abline(intercept = coefs[1], slope = coefs[2]) +
+            annotate("text", x = x.val, y = y.val, label = paste0("a = ", round(coefs[1], 2), ", b = ", round(coefs[2], 2)))
         }
+        
         if(input$smooth){
           g0 <- g0 + geom_smooth()
         }
+        
         if(input$cor){
-          cor <- cor(dat.tmp[, 1], dat.tmp[, 2], use = "pairwise.complete.obs")
-          g0 <- g0 + geom_label(x = (max(dat.tmp[, 1]) + min(dat.tmp[, 1])) / 2, y = (max(dat.tmp[, 2]) + min(dat.tmp[, 2])) / 2, label = paste0("r =", round(cor, 2)),
-                                label.size = 1)
+          cor.tmp <- cor(dat.tmp[, 1], dat.tmp[, 2], use = "pairwise.complete.obs")
+          x.val <- lims$xmin + (lims$xmax - lims$xmin) * .01
+          y.val <-lims$ymax - (lims$ymax - lims$ymin) * .01
+          g0 <- g0 + annotate("text", x = x.val, y = y.val, label = paste0("r = ", round(cor.tmp, 2)))
         }
         print(g0)
       } else if(types == 0){
@@ -240,25 +242,22 @@ shinyApp(
       }
       
     })
-    output$bi.var.name <- renderText({
-          paste("Descriptive statistics for the ", input$plot.type)
-        })
         
-        output$sum.bi <- renderPrint({
-          dat.tmp <- get.xs()
-          if(is.numeric(dat.tmp[, 1]) & is.numeric(dat.tmp[, 2])){
-            summary(dat.tmp)
-          } else if(!is.numeric(dat.tmp[, 1]) & !is.numeric(dat.tmp[, 2])){
-            table(dat.tmp)
-          } else {
-            if(is.numeric(dat.tmp[,1])){
-              num = 1
-              cat = 2
-            } else {
-              cat = 1
-              num = 2
-            }
-            by(dat.tmp[num], dat.tmp[cat], summary)
+    output$sum.bi <- renderPrint({
+      dat.tmp <- get.xs()
+      if(is.numeric(dat.tmp[, 1]) & is.numeric(dat.tmp[, 2])){
+        summary(dat.tmp)
+      } else if(!is.numeric(dat.tmp[, 1]) & !is.numeric(dat.tmp[, 2])){
+        table(dat.tmp)
+      } else {
+        if(is.numeric(dat.tmp[,1])){
+          num = 1
+          cat = 2
+        } else {
+          cat = 1
+          num = 2
+        }
+        by(dat.tmp[num], dat.tmp[cat], summary)
           }
         })
   }
