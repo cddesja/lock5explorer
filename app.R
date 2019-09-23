@@ -2,6 +2,7 @@ if(!require(Lock5Data)){
   install.packages("Lock5Data")
   library(Lock5Data)
 }
+
 if(!require(tools)){
   install.packages("tools")
   library(tools)
@@ -23,6 +24,9 @@ get_plot_limits <- function(plot) {
   ymax = gb$layout$panel_params[[1]]$y.range[2]
   data.frame(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax)
 }
+
+cbbPalette <- c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
+
 
 # get data helper function
 getdata <- function(...) {
@@ -73,7 +77,10 @@ shinyApp(
                                             "smooth", "Add a smoother?",value = FALSE))),
                            mainPanel(tabsetPanel(type = "tabs",
                                                  tabPanel("Plot",  plotOutput("bi.plot", height = "600px")),
-                                                 tabPanel("Summary", verbatimTextOutput("sum.bi"))))
+                                                 tabPanel("Summary", 
+                                                          verbatimTextOutput("cor.out"),
+                                                          verbatimTextOutput("reg.line"),
+                                                          verbatimTextOutput("sum.bi"))))
                            )
                   )
   ,
@@ -138,11 +145,12 @@ shinyApp(
 
     output$plot <- renderPlot({
       
+      
       if(is.numeric(unlist(get.var()))) {
         ggplot(get.var(), aes(x = get.var()[,1])) +
           geom_histogram(col = "white", fill = "#E69F00") + 
           xlab(names(get.var())[1])  +
-          scale_y_continuous(NULL, breaks = NULL)
+          ylab("Count")
       } else{
         ggplot(get.var(), aes(x = get.var()[,1])) +
           geom_bar(col = "#E69F00", fill = "#E69F00") + 
@@ -173,28 +181,21 @@ shinyApp(
         
         if(input$regline){
           coefs <- coef(lm(dat.tmp[, 2] ~ dat.tmp[, 1]))
-          x.val <- lims$xmin + (lims$xmax - lims$xmin) * .03
-          y.val <-lims$ymax - (lims$ymax - lims$ymin) * .05
           g0 <- g0 + 
-            geom_abline(intercept = coefs[1], slope = coefs[2]) +
-            annotate("text", x = x.val, y = y.val, label = paste0("a = ", round(coefs[1], 2), ", b = ", round(coefs[2], 2)))
+            geom_abline(intercept = coefs[1], slope = coefs[2])
         }
         
         if(input$smooth){
           g0 <- g0 + geom_smooth()
         }
-        
-        if(input$cor){
-          cor.tmp <- cor(dat.tmp[, 1], dat.tmp[, 2], use = "pairwise.complete.obs")
-          x.val <- lims$xmin + (lims$xmax - lims$xmin) * .01
-          y.val <-lims$ymax - (lims$ymax - lims$ymin) * .01
-          g0 <- g0 + annotate("text", x = x.val, y = y.val, label = paste0("r = ", round(cor.tmp, 2)))
-        }
         print(g0)
       } else if(types == 0){
-          ggplot(dat.tmp, aes(dat.tmp[, 1])) + 
-            geom_bar(aes(fill = dat.tmp[, 2]), col = "black", position = 'dodge', alpha = .6) +
-            theme(legend.title = element_blank()) + xlab(names(dat.tmp)[1])
+        ggplot(dat.tmp, aes(dat.tmp[, 1])) + 
+          geom_bar(aes(fill = dat.tmp[, 2]), col = "black", position = 'dodge', alpha = .6) +
+          theme(legend.title = element_blank()) +
+          scale_fill_manual("", values = cbbPalette) +
+          xlab(names(dat.tmp)[1]) +
+          ylab("Count")
         # categorical & quantitative plots ----
       } else if(input$plot.type == "Boxplot"){
         if(is.numeric(dat.tmp[,1])){
@@ -242,7 +243,29 @@ shinyApp(
       }
       
     })
-        
+    
+    output$cor.out <- renderPrint({
+      if(input$cor){
+        dat.tmp <- get.xs()
+        types <- sum(is.numeric(dat.tmp[, 1]), is.numeric(dat.tmp[, 2]))
+        if(types == 2){
+          cor.tmp <- cor(dat.tmp[, 1], dat.tmp[, 2], use = "pairwise.complete.obs")
+          cat("The correlation coefficient is\nr =", round(cor.tmp, 3))
+        }
+      }
+    })
+    
+    output$reg.line <- renderPrint({
+      if(input$regline){
+        dat.tmp <- get.xs()
+        types <- sum(is.numeric(dat.tmp[, 1]), is.numeric(dat.tmp[, 2]))
+        if(types == 2){
+          coefs <- coef(lm(dat.tmp[, 2] ~ dat.tmp[, 1]))
+          cat("The equation for the regression line is\na =", round(coefs[1], 3), "b =", round(coefs[2], 3))
+        }
+      }
+    })
+    
     output$sum.bi <- renderPrint({
       dat.tmp <- get.xs()
       if(is.numeric(dat.tmp[, 1]) & is.numeric(dat.tmp[, 2])){
