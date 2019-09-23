@@ -3,6 +3,11 @@ if(!require(Lock5Data)){
   library(Lock5Data)
 }
 
+if(!require(DT)){
+  install.packages("DT")
+  library(DT)
+}
+
 if(!require(tools)){
   install.packages("tools")
   library(tools)
