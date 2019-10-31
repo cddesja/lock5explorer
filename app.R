@@ -20,6 +20,10 @@ if(!require(dplyr)){
   install.packages("dplyr")
   library(dplyr)
 }
+if(!require(shiny)){
+  install.packages("shiny")
+  library(shiny)
+}
 
 get_plot_limits <- function(plot) {
   gb = ggplot_build(plot)
@@ -79,13 +83,16 @@ shinyApp(
                                           checkboxInput(
                                             "regline", "Find and plot the regression line?",value = FALSE),
                                           checkboxInput(
-                                            "smooth", "Add a smoother?",value = FALSE))),
+                                            "fixx", "Is the X variable suppose to be categorical?",value = FALSE),
+                                          checkboxInput(
+                                            "fixy", "Is the Y variable suppose to be categorical?",value = FALSE))),
                            mainPanel(tabsetPanel(type = "tabs",
                                                  tabPanel("Plot",  plotOutput("bi.plot", height = "600px")),
                                                  tabPanel("Summary", 
                                                           verbatimTextOutput("cor.out"),
                                                           verbatimTextOutput("reg.line"),
-                                                          verbatimTextOutput("sum.bi"))))
+                                                          verbatimTextOutput("sum.bi"),
+                                                          verbatimTextOutput("std.out"))))
                            )
                   )
   ,
@@ -190,9 +197,6 @@ shinyApp(
             geom_abline(intercept = coefs[1], slope = coefs[2])
         }
         
-        if(input$smooth){
-          g0 <- g0 + geom_smooth()
-        }
         print(g0)
       } else if(types == 0){
         ggplot(dat.tmp, aes(dat.tmp[, 1])) + 
@@ -288,6 +292,26 @@ shinyApp(
         by(dat.tmp[num], dat.tmp[cat], summary)
           }
         })
+    
+    output$std.out <- renderPrint({
+      dat.tmp <- get.xs()
+      if(is.numeric(dat.tmp[, 1]) & is.numeric(dat.tmp[, 2])){
+        #summary(dat.tmp)
+      } else if(!is.numeric(dat.tmp[, 1]) & !is.numeric(dat.tmp[, 2])){
+        #table(dat.tmp)
+      } else {
+        if(is.numeric(dat.tmp[,1])){
+          num = 1
+          cat = 2
+        } else {
+          cat = 1
+          num = 2
+        }
+        grp <- by(dat.tmp[[num]], dat.tmp[[cat]], sd)
+        cat("The standard deviations for each group are:\n")
+        c(grp)
+      }
+    })
   }
     )
   )
