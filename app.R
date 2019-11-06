@@ -1,7 +1,10 @@
-if(!require(Lock5Data)){
-  install.packages("Lock5Data")
-  library(Lock5Data)
+if(!require(devtools)){
+  install.packages("devtools")
+  library(devtools)
 }
+
+install_github("cddesja/Lock5Data")
+library(Lock5Data)
 
 if(!require(DT)){
   install.packages("DT")
